@@ -3,4 +3,8 @@ project(SimpleDataBase C)
 
 set(CMAKE_C_STANDARD 99)
 
-add_executable(SimpleDataBase main.c)
+add_executable(SimpleDataBase main.c
+        db.c
+        db.h
+        input.c
+        statement.c)
