@@ -6,6 +6,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <unistd.h>
+#include <errno.h>
+#include <fcntl.h>
 
 #define size_of_attribute(Struct, Attribute) sizeof(((Struct*)0)->Attribute)
 #define COLUMN_USERNAME_SIZE 32
@@ -19,8 +22,15 @@ typedef struct {
 } Row;
 
 typedef struct {
-    uint32_t num_rows;
+    int file_descriptor;
+    uint32_t file_length;
     void* pages[TABLE_MAX_PAGES];
+} Pager;
+
+// 在Table中抽象出一个pager，以后都向pager中查询数据
+typedef struct {
+    uint32_t num_rows;
+    Pager* pager;
 } Table;
 
 typedef enum {
@@ -80,8 +90,11 @@ void deserialize_row(void* source, Row* destination);
 void* row_slot(Table* table, uint32_t row_num);
 void print_row(Row* row);
 
-Table* new_table();
-void free_table(Table* table);
+Table* db_open(const char* filename);
+void* get_page(Pager* pager, uint32_t page_num);
+Pager* pager_open(const char* filename);
+void db_close(Table* table);
+void pager_flush(Pager* pager, uint32_t page_num, uint32_t size);
 
 MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table);
 PrepareResult prepare_statement(InputBuffer *input_buffer, Statement *statement);
