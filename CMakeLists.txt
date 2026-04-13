@@ -7,4 +7,5 @@ add_executable(SimpleDataBase main.c
         db.c
         db.h
         input.c
-        statement.c)
+        statement.c
+)
