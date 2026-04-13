@@ -23,6 +23,7 @@ void deserialize_row(void* source, Row* destination) {
     memcpy(&(destination->email), source + EMAIL_OFFSET, EMAIL_SIZE);
 }
 
+// 获取一页中的数据，优先从内存缓存中获取，没有再从硬盘中获取
 void* get_page(Pager* pager, uint32_t page_num) {
     if (page_num > TABLE_MAX_PAGES) {
         printf("Tried to fetch page number out of bounds. %d > %d\n", page_num, TABLE_MAX_PAGES);
@@ -30,10 +31,10 @@ void* get_page(Pager* pager, uint32_t page_num) {
     }
 
     if (pager->pages[page_num] == NULL) {
-        // Cache miss. Allocate memory and load from file.
+        // 在内存缓存中未命中，分配内存空间并从硬盘文件中加载数据
         void* page = malloc(PAGE_SIZE);
         uint32_t num_pages = pager->file_length / PAGE_SIZE;
-        // We might save a partial page at the end of the file
+        // 可能最后一页中的数据未满，需要再次处理
         if (pager->file_length % PAGE_SIZE) {
             num_pages += 1;
         }
@@ -52,9 +53,12 @@ void* get_page(Pager* pager, uint32_t page_num) {
     return pager->pages[page_num];
 }
 
+// 根据行号找到对应的内存地址
 void* row_slot(Table* table, uint32_t row_num) {
+    // 得到行对应页的内存地址
     uint32_t page_num = row_num / ROWS_PER_PAGE;
     void* page = get_page(table->pager, page_num);
+    // 拿到row_num是这个一页的第几行，并计算出对应的字节偏移量
     uint32_t row_offset = row_num % ROWS_PER_PAGE;
     uint32_t byte_offset = row_offset * ROW_SIZE;
     return page + byte_offset;
@@ -64,7 +68,10 @@ void print_row(Row* row) {
     printf("(%d, %s, %s)\n", row->id, row->username, row->email);
 }
 
+// 设置Pager的元数据
 Pager* pager_open(const char* filename) {
+
+    // 打开文件
     int fd = open(filename,
         O_RDWR |      // Read/Write mode
     O_CREAT,  // Create file if it does not exist
@@ -73,12 +80,14 @@ Pager* pager_open(const char* filename) {
     );
 
     if (fd == -1) {
-        printf("Unable to open file\n");
+        printf("不能打开该文件\n");
         exit(EXIT_FAILURE);
     }
 
+    // 获取打开文件的大小
     off_t file_length = lseek(fd, 0, SEEK_END);
 
+    // 设置Pager的元数据
     Pager* pager = malloc(sizeof(Pager));
     pager->file_descriptor = fd;
     pager->file_length = file_length;
@@ -90,6 +99,7 @@ Pager* pager_open(const char* filename) {
     return pager;
 }
 
+// 打开存储的文件db，设置Table的元数据
 Table* db_open(const char* filename) {
     Pager* pager = pager_open(filename);
     uint32_t num_rows = pager->file_length / ROW_SIZE;
@@ -102,10 +112,12 @@ Table* db_open(const char* filename) {
     return table;
 }
 
+// 数据库系统关闭函数，其中包含关闭前需要的善后工作
 void db_close(Table* table) {
     Pager* pager = table->pager;
     uint32_t num_full_pages = table->num_rows / ROWS_PER_PAGE;
 
+    // 将在Table中的在内存中的每个满的Pager都刷新到硬盘中
     for (uint32_t i = 0; i < num_full_pages; i++) {
         if (pager->pages[i] == NULL) {
             continue;
@@ -115,8 +127,7 @@ void db_close(Table* table) {
         pager->pages[i] = NULL;
     }
 
-    // There may be a partial page to write to the end of the file
-    // This should not be needed after we switch to a B-tree
+    // 处理最后一页没满的情况
     uint32_t num_additional_rows = table->num_rows % ROWS_PER_PAGE;
     if (num_additional_rows > 0) {
         uint32_t page_num = num_full_pages;
@@ -127,6 +138,7 @@ void db_close(Table* table) {
         }
     }
 
+    // 将打开的文件关闭
     int result = close(pager->file_descriptor);
     if (result == -1) {
         printf("Error closing db file.\n");
@@ -143,12 +155,16 @@ void db_close(Table* table) {
     free(table);
 }
 
+// 将内存中的Pager刷新到硬盘文件中
 void pager_flush(Pager* pager, uint32_t page_num, uint32_t size) {
+
+    // 如果页面不存在内容中，则直接退出
     if (pager->pages[page_num] == NULL) {
         printf("Tried to flush null page\n");
         exit(EXIT_FAILURE);
     }
 
+    // 移动文件指针到正确位置，移动到page_num对应的位置
     off_t offset = lseek(pager->file_descriptor, page_num * PAGE_SIZE, SEEK_SET);
 
     if (offset == -1) {
