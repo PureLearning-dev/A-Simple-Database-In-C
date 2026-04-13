@@ -39,18 +39,28 @@ static ExecuteResult execute_insert(Statement* statement, Table* table) {
     if (table->num_rows >= TABLE_MAX_ROWS) return EXECUTE_TABLE_FULL;
 
     Row* row_to_insert = &(statement->row_to_insert);
-    serialize_row(row_to_insert, row_slot(table, table->num_rows));
+    // 创建一个指向末尾的游标
+    Cursor* cursor = table_end(table);
+    // 将row_to_insert中的数据移动到对应的cursor位置（插入）
+    serialize_row(row_to_insert, cursor_value(cursor));
     table->num_rows += 1;
 
     return EXECUTE_SUCCESS;
 }
 
 static ExecuteResult execute_select(Statement* statement, Table* table) {
+    // 创建开始的cursor
+    Cursor* cursor = table_start(table);
+
     Row row;
-    for (uint32_t i = 0; i < table->num_rows; i++) {
-        deserialize_row(row_slot(table, i), &row);
+
+    while (!(cursor->end_of_table)) {
+        deserialize_row(cursor_value(cursor), &row);
         print_row(&row);
+        cursor_advance(cursor);
     }
+
+    free(cursor);
     return EXECUTE_SUCCESS;
 }
 

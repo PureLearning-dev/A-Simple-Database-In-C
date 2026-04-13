@@ -21,6 +21,14 @@ typedef struct {
     char email[COLUMN_EMAIL_SIZE];
 } Row;
 
+// 将数据结构进一步抽象，Cursor表示数据库正在操作的行
+// 只用知道数据所在的行就可以得到对应的内存位置
+typedef struct {
+    Table* table;
+    uint32_t row_num;
+    bool end_of_table;  // 表示Cursor指向位置的后一个行是否存在，方便直接使用Cursor进行判断是否可以执行后续操作
+} Cursor;
+
 typedef struct {
     int file_descriptor;
     uint32_t file_length;
@@ -87,7 +95,7 @@ void close_input_buffer(InputBuffer *input_buffer);
 
 void serialize_row(Row* source, void* destination);
 void deserialize_row(void* source, Row* destination);
-void* row_slot(Table* table, uint32_t row_num);
+void* cursor_value(Cursor* cursor);
 void print_row(Row* row);
 
 Table* db_open(const char* filename);
@@ -95,6 +103,10 @@ void* get_page(Pager* pager, uint32_t page_num);
 Pager* pager_open(const char* filename);
 void db_close(Table* table);
 void pager_flush(Pager* pager, uint32_t page_num, uint32_t size);
+
+Cursor* table_start(Table* table);
+Cursor* table_end(Table* table)
+void cursor_advance(Cursor* cursor);
 
 MetaCommandResult do_meta_command(InputBuffer *input_buffer, Table *table);
 PrepareResult prepare_statement(InputBuffer *input_buffer, Statement *statement);

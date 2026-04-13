@@ -53,15 +53,24 @@ void* get_page(Pager* pager, uint32_t page_num) {
     return pager->pages[page_num];
 }
 
-// 根据行号找到对应的内存地址
-void* row_slot(Table* table, uint32_t row_num) {
+// 根据行号找到对应的内存地址，传入的是进一步抽象过的Cursor结构体
+void* cursor_value(Cursor* cursor) {
     // 得到行对应页的内存地址
+    uint32_t row_num = cursor->row_num;
     uint32_t page_num = row_num / ROWS_PER_PAGE;
-    void* page = get_page(table->pager, page_num);
+    void* page = get_page(cursor->table->pager, page_num);
     // 拿到row_num是这个一页的第几行，并计算出对应的字节偏移量
     uint32_t row_offset = row_num % ROWS_PER_PAGE;
     uint32_t byte_offset = row_offset * ROW_SIZE;
     return page + byte_offset;
+}
+
+// 增加游标 +1
+void cursor_advance(Cursor* cursor) {
+    cursor->row_num += 1;
+    if (cursor->row_num >= cursor->table->num_rows) {
+        cursor->end_of_table = true;
+    }
 }
 
 void print_row(Row* row) {
@@ -176,4 +185,23 @@ void pager_flush(Pager* pager, uint32_t page_num, uint32_t size) {
         printf("Error writing: %d\n", errno);
         exit(EXIT_FAILURE);
     }
+}
+
+// 创建指向表头的游标
+Cursor* table_start(Table* table) {
+    Cursor* cursor = malloc(sizeof(Cursor));
+    cursor->table = table;
+    cursor->row_num = 0;
+    cursor->end_of_table = (table->num_rows == 0);
+    return cursor;
+}
+
+// 创建指向表尾的游标
+Cursor* table_end(Table* table) {
+    Cursor* cursor = malloc(sizeof(Cursor));
+    cursor->table = table;
+    cursor->row_num = table->num_rows;
+    cursor->end_of_table = true;
+
+    return cursor;
 }
